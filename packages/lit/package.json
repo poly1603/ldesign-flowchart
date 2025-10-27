@@ -1,0 +1,54 @@
+{
+  "name": "@ldesign/flowchart-lit",
+  "version": "1.0.0",
+  "description": "Lit Web Components for flowchart designer",
+  "keywords": [
+    "flowchart",
+    "workflow",
+    "web-components",
+    "lit",
+    "lit-element"
+  ],
+  "author": "LDesign Team",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs"
+    }
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "package.json",
+    "es",
+    "lib",
+    "dist"
+  ],
+  "scripts": {
+    "dev": "ldesign-builder watch",
+    "build": "ldesign-builder build",
+    "test": "vitest",
+    "demo": "cd demo && pnpm dev",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ldesign/flowchart-core": "workspace:*",
+    "lit": "^3.0.0",
+    "@lit/reactive-element": "^2.0.0",
+    "lit-html": "^3.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.0"
+  }
+}

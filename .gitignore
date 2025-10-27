@@ -14,3 +14,7 @@ coverage
 .cache
 .temp
 .tmp
+es
+lib
+**/src/*.d.ts
+**/src/*.map.js
