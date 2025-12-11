@@ -1,50 +1,66 @@
 /**
- * @ldesign/flowchart-vue
- * Vue components for flowchart designer
+ * @flowchart/vue
+ * OA流程审批插件Vue3组件封装
  */
 
-// 导出组件
-export { default as FlowDesigner } from './components/FlowDesigner.vue'
+// 组件
+export { FlowchartApproval, type FlowchartApprovalInstance } from './components/FlowchartApproval'
 
-// 导出Composables
-export { useFlow } from './composables/useFlow'
-export type { UseFlowOptions, UseFlowReturn } from './composables/useFlow'
+// Hooks
+export { useFlowchart, type UseFlowchartOptions, type UseFlowchartReturn } from './hooks/useFlowchart'
 
-// 导出核心类型
+// 从 core 重新导出类型
 export type {
-  FlowData,
-  NodeData,
-  EdgeData,
+  // 基础类型
   NodeType,
-  EdgeType,
+  ApprovalMode,
   NodeStatus,
+  EdgeType,
   Position,
   Size,
-  FlowDesignerConfig,
-  WorkflowNode,
-  ApprovalNodeConfig,
-  GatewayNodeConfig,
-  ProcessInstance,
-  TaskInstance,
-  ApprovalRecord
-} from '@ldesign/flowchart-core/types'
 
-// 导出模型类（供高级用户使用）
+  // 节点类型
+  FlowNode,
+  NodeData,
+  StartNodeData,
+  EndNodeData,
+  ApprovalNodeData,
+  CCNodeData,
+  ConditionNodeData,
+  ParallelNodeData,
+  TimerNodeData,
+
+  // 连线类型
+  FlowEdge,
+  EdgeData,
+
+  // 流程定义
+  FlowDefinition,
+
+  // 配置类型
+  FlowchartConfig,
+  CanvasConfig,
+  ToolbarConfig,
+  NodeStyleConfig,
+  EdgeStyleConfig,
+
+  // 事件类型
+  FlowchartEventType,
+  FlowchartEventData,
+  FlowchartEventCallback,
+
+  // 验证类型
+  ValidationResult,
+  ValidationError,
+
+  // 审批人配置
+  ApproverConfig,
+  ConditionExpression,
+  ConditionGroup,
+} from '@flowchart/core'
+
+// 从 core 重新导出工具函数
 export {
-  FlowModel,
-  NodeModel,
-  EdgeModel
-} from '@ldesign/flowchart-core/models'
-
-// Vue插件
-import type { App } from 'vue'
-import FlowDesigner from './components/FlowDesigner.vue'
-
-export const FlowchartPlugin = {
-  install(app: App) {
-    app.component('FlowDesigner', FlowDesigner)
-  }
-}
-
-export default FlowchartPlugin
-
+  generateId,
+  deepClone,
+} from '@flowchart/core'

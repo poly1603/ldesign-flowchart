@@ -1,30 +1,15 @@
 {
-  "name": "flowchart-approval",
+  "name": "flowchart-approval-monorepo",
+  "private": true,
   "version": "1.0.0",
-  "description": "A powerful and easy-to-use approval flowchart plugin",
-  "main": "dist/flowchart.cjs.js",
-  "module": "dist/flowchart.esm.js",
-  "browser": "dist/flowchart.umd.js",
-  "types": "dist/types/index.d.ts",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
+  "description": "OA流程审批插件 - Monorepo",
   "scripts": {
-    "dev": "rollup -c -w",
-    "build": "rollup -c",
-    "example:install": "cd example && npm install",
-    "example:dev": "cd example && npm run dev",
-    "example:build": "cd example && npm run build",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "dev": "pnpm -C playground dev",
+    "build": "pnpm -r build",
+    "build:core": "pnpm -C packages/core build",
+    "build:vue": "pnpm -C packages/vue build",
+    "build:playground": "pnpm -C playground build",
+    "preview": "pnpm -C playground preview"
   },
   "keywords": [
     "flowchart",
@@ -32,42 +17,16 @@
     "workflow",
     "diagram",
     "typescript",
-    "svg",
-    "visualization",
-    "flow-diagram",
-    "process-flow",
-    "business-process"
+    "vue3"
   ],
   "author": "FlowChart Team",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-org/flowchart-approval.git"
-  },
-  "bugs": {
-    "url": "https://github.com/your-org/flowchart-approval/issues"
-  },
-  "homepage": "https://github.com/your-org/flowchart-approval#readme",
   "engines": {
-    "node": ">=14.0.0",
-    "npm": ">=6.0.0"
+    "node": ">=16.0.0",
+    "pnpm": ">=8.0.0"
   },
-  "sideEffects": false,
+  "packageManager": "pnpm@8.15.0",
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^25.0.7",
-    "@rollup/plugin-node-resolve": "^15.2.3",
-    "@rollup/plugin-typescript": "^11.1.5",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "@vitest/ui": "^1.0.0",
-    "@vitest/coverage-v8": "^1.0.0",
-    "eslint": "^8.0.0",
-    "jsdom": "^23.0.0",
-    "prettier": "^3.0.0",
-    "rollup": "^4.9.6",
-    "rollup-plugin-dts": "^6.1.0",
-    "tslib": "^2.6.2",
-    "typescript": "^5.3.3",
-    "vitest": "^1.0.0"
+    "typescript": "^5.3.3"
   }
 }

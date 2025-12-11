@@ -16,5 +16,5 @@ coverage
 .tmp
 es
 lib
-**/src/*.d.ts
+**/dist/*.d.ts
 **/src/*.map.js
