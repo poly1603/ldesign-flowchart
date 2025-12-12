@@ -2,55 +2,35 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Flowchart, type FlowDefinition } from '@flowchart/core'
 
-type FlowchartTheme = 'default' | 'dark' | 'colorful' | 'minimal' | 'blueprint'
+type FlowchartTheme = 'light' | 'dark'
 
 let flowchartInstance: Flowchart | null = null
 const canvasRef = ref<HTMLElement | null>(null)
-const currentTheme = ref<FlowchartTheme>('default')
+const currentTheme = ref<FlowchartTheme>('light')
 
 const themes: { id: FlowchartTheme; name: string; description: string }[] = [
-  { id: 'default', name: '默认主题', description: '清新简约的默认样式' },
-  { id: 'dark', name: '暗黑主题', description: '适合深色背景的主题' },
-  { id: 'colorful', name: '多彩主题', description: '色彩丰富的节点样式' },
-  { id: 'minimal', name: '极简主题', description: '简洁的线条风格' },
-  { id: 'blueprint', name: '蓝图主题', description: '工程图纸风格' },
+  { id: 'light', name: '亮色主题', description: '清新明亮，适合日常使用' },
+  { id: 'dark', name: '暗色主题', description: '护眼舒适，适合深色环境' },
 ]
 
 const themeStyles: Record<FlowchartTheme, Record<string, string>> = {
-  default: {
+  light: {
     '--fc-bg': '#f8fafc',
     '--fc-grid': '#e2e8f0',
     '--fc-node-bg': '#ffffff',
-    '--fc-node-border': '#e2e8f0',
-    '--fc-edge-color': '#94a3b8',
+    '--fc-node-border': '#e5e7eb',
+    '--fc-edge-color': '#64748b',
+    '--fc-text-color': '#1f2937',
+    '--fc-text-secondary': '#6b7280',
   },
   dark: {
-    '--fc-bg': '#1a1a2e',
-    '--fc-grid': '#16213e',
-    '--fc-node-bg': '#0f3460',
-    '--fc-node-border': '#1a1a2e',
-    '--fc-edge-color': '#e94560',
-  },
-  colorful: {
-    '--fc-bg': '#fef3c7',
-    '--fc-grid': '#fcd34d',
-    '--fc-node-bg': '#ffffff',
-    '--fc-node-border': '#f59e0b',
-    '--fc-edge-color': '#8b5cf6',
-  },
-  minimal: {
-    '--fc-bg': '#ffffff',
-    '--fc-grid': '#f3f4f6',
-    '--fc-node-bg': '#ffffff',
-    '--fc-node-border': '#d1d5db',
-    '--fc-edge-color': '#9ca3af',
-  },
-  blueprint: {
-    '--fc-bg': '#1e3a5f',
-    '--fc-grid': '#2d4a6f',
-    '--fc-node-bg': '#2d4a6f',
-    '--fc-node-border': '#4a90d9',
-    '--fc-edge-color': '#4a90d9',
+    '--fc-bg': '#0f172a',
+    '--fc-grid': '#1e293b',
+    '--fc-node-bg': '#1e293b',
+    '--fc-node-border': '#334155',
+    '--fc-edge-color': '#94a3b8',
+    '--fc-text-color': '#f1f5f9',
+    '--fc-text-secondary': '#94a3b8',
   },
 }
 
@@ -81,9 +61,9 @@ const applyTheme = (theme: FlowchartTheme) => {
     canvasRef.value!.style.setProperty(key, value)
   })
   
-  // 设置文字颜色
-  const isDark = theme === 'dark' || theme === 'blueprint'
-  canvasRef.value.style.setProperty('--fc-text-color', isDark ? '#f1f5f9' : '#262626')
+  // 添加主题类名
+  canvasRef.value.classList.remove('theme-light', 'theme-dark')
+  canvasRef.value.classList.add(`theme-${theme}`)
 }
 
 watch(currentTheme, (theme) => {
@@ -186,44 +166,22 @@ onUnmounted(() => {
   border: 2px solid;
 }
 
-.theme-preview.default {
-  background: #f8fafc;
+.theme-preview.light {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
-.theme-preview.default::before {
+.theme-preview.light::before {
   background: #fff;
-  border-color: #e2e8f0;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .theme-preview.dark {
-  background: #1a1a2e;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 }
 .theme-preview.dark::before {
-  background: #0f3460;
-  border-color: #e94560;
-}
-
-.theme-preview.colorful {
-  background: #fef3c7;
-}
-.theme-preview.colorful::before {
-  background: #fff;
-  border-color: #f59e0b;
-}
-
-.theme-preview.minimal {
-  background: #fff;
-}
-.theme-preview.minimal::before {
-  background: #fff;
-  border-color: #d1d5db;
-}
-
-.theme-preview.blueprint {
-  background: #1e3a5f;
-}
-.theme-preview.blueprint::before {
-  background: #2d4a6f;
-  border-color: #4a90d9;
+  background: #1e293b;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .theme-info {

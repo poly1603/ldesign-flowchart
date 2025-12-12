@@ -101,31 +101,79 @@ export class NodeRenderer {
   }
 
   /**
-   * 获取节点样式
+   * 获取节点样式 - 根据类型应用不同形状，支持自适应宽度
    */
   private getNodeStyle(node: FlowNode): Partial<CSSStyleDeclaration> {
     const customStyle = this.options.styles?.[node.type]
     const defaultColor = NODE_COLORS[node.type]
+    const isVertical = (node.data as { layout?: string })?.layout === 'vertical'
+    const width = node.size?.width ?? 150
+    const height = node.size?.height ?? (isVertical ? 70 : 50)
 
-    return {
+    // 基础样式 - 固定宽度保持整齐
+    const baseStyle: Partial<CSSStyleDeclaration> = {
       position: 'absolute',
       left: `${node.position.x}px`,
       top: `${node.position.y}px`,
-      width: `${node.size?.width ?? 180}px`,
-      height: `${node.size?.height ?? 60}px`,
-      backgroundColor: customStyle?.backgroundColor ?? '#fff',
+      width: `${width}px`,
+      height: `${height}px`,
+      backgroundColor: customStyle?.backgroundColor ?? 'var(--fc-node-bg, #fff)',
       borderColor: customStyle?.borderColor ?? defaultColor,
       borderWidth: `${customStyle?.borderWidth ?? 2}px`,
       borderStyle: 'solid',
-      borderRadius: `${customStyle?.borderRadius ?? 8}px`,
-      boxShadow: customStyle?.shadow ?? '0 2px 8px rgba(0,0,0,0.1)',
+      boxShadow: customStyle?.shadow ?? '0 4px 12px rgba(0,0,0,0.08)',
       cursor: node.disabled ? 'not-allowed' : 'move',
       userSelect: 'none',
       display: 'flex',
+      flexDirection: isVertical ? 'column' : 'row',
       alignItems: 'center',
-      padding: '0 12px',
+      justifyContent: 'center',
+      padding: isVertical ? '8px 16px' : '0 16px',
       boxSizing: 'border-box',
-      transition: 'box-shadow 0.2s, border-color 0.2s',
+      transition: 'box-shadow 0.2s, border-color 0.2s, transform 0.2s',
+    }
+
+    // 根据节点类型设置不同形状
+    switch (node.type) {
+      case 'start':
+      case 'end':
+        // 胶囊形状
+        baseStyle.borderRadius = `${height / 2}px`
+        baseStyle.background = `linear-gradient(135deg, ${defaultColor}15 0%, ${defaultColor}08 100%)`
+        break
+
+      case 'condition':
+        // 菱形风格边框
+        baseStyle.borderRadius = '8px'
+        baseStyle.background = `linear-gradient(135deg, ${defaultColor}12 0%, ${defaultColor}05 100%)`
+        break
+
+      case 'parallel':
+        // 双线边框效果
+        baseStyle.borderRadius = '4px'
+        baseStyle.borderWidth = '3px'
+        baseStyle.background = `linear-gradient(135deg, ${defaultColor}10 0%, ${defaultColor}05 100%)`
+        break
+
+      case 'approval':
+        // 圆角矩形
+        baseStyle.borderRadius = '10px'
+        baseStyle.background = `linear-gradient(135deg, ${defaultColor}08 0%, transparent 100%)`
+        break
+
+      case 'cc':
+        // 虚线边框
+        baseStyle.borderRadius = '10px'
+        baseStyle.borderStyle = 'dashed'
+        baseStyle.background = `linear-gradient(135deg, ${defaultColor}08 0%, transparent 100%)`
+        break
+
+      default:
+        baseStyle.borderRadius = `${customStyle?.borderRadius ?? 8}px`
+    }
+
+    return {
+      ...baseStyle,
       ...(node.style ?? {}),
     }
   }
@@ -161,7 +209,7 @@ export class NodeRenderer {
     name.style.cssText = `
       font-size: 14px;
       font-weight: 500;
-      color: #262626;
+      color: var(--fc-text-color, #262626);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -174,7 +222,7 @@ export class NodeRenderer {
       desc.textContent = node.data.description
       desc.style.cssText = `
         font-size: 12px;
-        color: #8c8c8c;
+        color: var(--fc-text-secondary, #8c8c8c);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -197,51 +245,64 @@ export class NodeRenderer {
   }
 
   /**
-   * 添加连接点
+   * 添加连接点 - 所有节点四周都有连接点
    */
   private addHandles(node: FlowNode, container: HTMLElement): void {
+    const color = NODE_COLORS[node.type]
     const handleStyle = `
       position: absolute;
-      width: 12px;
-      height: 12px;
+      width: 8px;
+      height: 8px;
       background: #fff;
-      border: 2px solid ${NODE_COLORS[node.type]};
+      border: 1.5px solid ${color};
       border-radius: 50%;
       cursor: crosshair;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: opacity 0.2s, transform 0.15s, background 0.15s;
+      z-index: 10;
     `
 
-    // 上方连接点（入口）
+    // 上方连接点（target）
     if (node.type !== 'start') {
       const topHandle = document.createElement('div')
-      topHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-top`
+      topHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-top ${this.classPrefix}-handle-target`
       topHandle.setAttribute('data-handle', 'top')
-      topHandle.style.cssText = `${handleStyle} top: -6px; left: 50%; transform: translateX(-50%);`
+      topHandle.setAttribute('data-handle-type', 'target')
+      topHandle.setAttribute('data-node-id', node.id)
+      topHandle.style.cssText = `${handleStyle} top: -4px; left: 50%; transform: translateX(-50%);`
       container.appendChild(topHandle)
     }
 
-    // 下方连接点（出口）
+    // 下方连接点（source）
     if (node.type !== 'end') {
       const bottomHandle = document.createElement('div')
-      bottomHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-bottom`
+      bottomHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-bottom ${this.classPrefix}-handle-source`
       bottomHandle.setAttribute('data-handle', 'bottom')
-      bottomHandle.style.cssText = `${handleStyle} bottom: -6px; left: 50%; transform: translateX(-50%);`
+      bottomHandle.setAttribute('data-handle-type', 'source')
+      bottomHandle.setAttribute('data-node-id', node.id)
+      bottomHandle.style.cssText = `${handleStyle} bottom: -4px; left: 50%; transform: translateX(-50%);`
       container.appendChild(bottomHandle)
     }
 
-    // 条件和并行节点添加左右连接点
-    if (node.type === 'condition' || node.type === 'parallel' || node.type === 'exclusive') {
+    // 左侧连接点（target）- 所有节点都有
+    if (node.type !== 'start') {
       const leftHandle = document.createElement('div')
-      leftHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-left`
+      leftHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-left ${this.classPrefix}-handle-target`
       leftHandle.setAttribute('data-handle', 'left')
-      leftHandle.style.cssText = `${handleStyle} left: -6px; top: 50%; transform: translateY(-50%);`
+      leftHandle.setAttribute('data-handle-type', 'target')
+      leftHandle.setAttribute('data-node-id', node.id)
+      leftHandle.style.cssText = `${handleStyle} left: -4px; top: 50%; transform: translateY(-50%);`
       container.appendChild(leftHandle)
+    }
 
+    // 右侧连接点（source）- 所有节点都有
+    if (node.type !== 'end') {
       const rightHandle = document.createElement('div')
-      rightHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-right`
+      rightHandle.className = `${this.classPrefix}-handle ${this.classPrefix}-handle-right ${this.classPrefix}-handle-source`
       rightHandle.setAttribute('data-handle', 'right')
-      rightHandle.style.cssText = `${handleStyle} right: -6px; top: 50%; transform: translateY(-50%);`
+      rightHandle.setAttribute('data-handle-type', 'source')
+      rightHandle.setAttribute('data-node-id', node.id)
+      rightHandle.style.cssText = `${handleStyle} right: -4px; top: 50%; transform: translateY(-50%);`
       container.appendChild(rightHandle)
     }
   }

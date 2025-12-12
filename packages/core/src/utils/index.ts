@@ -128,42 +128,171 @@ export function getNodeCenter(node: FlowNode): Position {
   }
 }
 
-/** 计算连线的路径控制点 */
-export function getEdgeControlPoints(
+/** 连接点位置类型 */
+export type HandlePosition = 'top' | 'bottom' | 'left' | 'right'
+
+/** 获取节点各边中心点 */
+export function getNodeHandlePosition(node: FlowNode, handle: HandlePosition): Position {
+  const bounds = getNodeBounds(node)
+  switch (handle) {
+    case 'top':
+      return { x: bounds.x + bounds.width / 2, y: bounds.y }
+    case 'bottom':
+      return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+    case 'left':
+      return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+    case 'right':
+      return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+  }
+}
+
+/** 计算最佳连接点 */
+export function getBestHandles(
   sourceNode: FlowNode,
   targetNode: FlowNode
-): { start: Position; end: Position; control1: Position; control2: Position } {
+): { sourceHandle: HandlePosition; targetHandle: HandlePosition } {
   const sourceCenter = getNodeCenter(sourceNode)
   const targetCenter = getNodeCenter(targetNode)
   const sourceBounds = getNodeBounds(sourceNode)
   const targetBounds = getNodeBounds(targetNode)
 
-  // 计算连线起点和终点（节点边缘）
-  const start: Position = {
-    x: sourceCenter.x,
-    y: sourceBounds.y + sourceBounds.height, // 从下边缘出发
+  const dx = targetCenter.x - sourceCenter.x
+  const dy = targetCenter.y - sourceCenter.y
+
+  // 判断目标在源的哪个方向
+  const isBelow = targetBounds.y > sourceBounds.y + sourceBounds.height - 20
+  const isAbove = targetBounds.y + targetBounds.height < sourceBounds.y + 20
+  const isRight = targetBounds.x > sourceBounds.x + sourceBounds.width - 20
+  const isLeft = targetBounds.x + targetBounds.width < sourceBounds.x + 20
+
+  // 优先垂直连接（流程图通常是上下流向）
+  if (isBelow && Math.abs(dx) < Math.abs(dy)) {
+    return { sourceHandle: 'bottom', targetHandle: 'top' }
+  }
+  if (isAbove && Math.abs(dx) < Math.abs(dy)) {
+    return { sourceHandle: 'top', targetHandle: 'bottom' }
+  }
+  if (isRight) {
+    return { sourceHandle: 'right', targetHandle: 'left' }
+  }
+  if (isLeft) {
+    return { sourceHandle: 'left', targetHandle: 'right' }
   }
 
-  const end: Position = {
-    x: targetCenter.x,
-    y: targetBounds.y, // 到上边缘
+  // 默认从下到上
+  return dy >= 0
+    ? { sourceHandle: 'bottom', targetHandle: 'top' }
+    : { sourceHandle: 'top', targetHandle: 'bottom' }
+}
+
+/** 计算连线的路径控制点 - 智能选择连接点 */
+export function getEdgeControlPoints(
+  sourceNode: FlowNode,
+  targetNode: FlowNode
+): { start: Position; end: Position; control1: Position; control2: Position } {
+  const { sourceHandle, targetHandle } = getBestHandles(sourceNode, targetNode)
+
+  const start = getNodeHandlePosition(sourceNode, sourceHandle)
+  const end = getNodeHandlePosition(targetNode, targetHandle)
+
+  // 根据连接点方向计算控制点
+  const offset = Math.min(Math.max(Math.abs(end.y - start.y) * 0.5, 30), 80)
+
+  let control1: Position
+  let control2: Position
+
+  if (sourceHandle === 'bottom') {
+    control1 = { x: start.x, y: start.y + offset }
+  } else if (sourceHandle === 'top') {
+    control1 = { x: start.x, y: start.y - offset }
+  } else if (sourceHandle === 'right') {
+    control1 = { x: start.x + offset, y: start.y }
+  } else {
+    control1 = { x: start.x - offset, y: start.y }
   }
 
-  // 计算控制点（贝塞尔曲线）
-  const deltaY = Math.abs(end.y - start.y)
-  const controlOffset = Math.min(deltaY * 0.5, 100)
-
-  const control1: Position = {
-    x: start.x,
-    y: start.y + controlOffset,
-  }
-
-  const control2: Position = {
-    x: end.x,
-    y: end.y - controlOffset,
+  if (targetHandle === 'top') {
+    control2 = { x: end.x, y: end.y - offset }
+  } else if (targetHandle === 'bottom') {
+    control2 = { x: end.x, y: end.y + offset }
+  } else if (targetHandle === 'left') {
+    control2 = { x: end.x - offset, y: end.y }
+  } else {
+    control2 = { x: end.x + offset, y: end.y }
   }
 
   return { start, end, control1, control2 }
+}
+
+/** 生成平滑步进路径（正交路径带圆角）*/
+export function generateSmoothStepPath(
+  sourceNode: FlowNode,
+  targetNode: FlowNode,
+  borderRadius = 8
+): string {
+  const { sourceHandle, targetHandle } = getBestHandles(sourceNode, targetNode)
+  const start = getNodeHandlePosition(sourceNode, sourceHandle)
+  const end = getNodeHandlePosition(targetNode, targetHandle)
+
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+
+  // 简单情况：直线连接
+  if (sourceHandle === 'bottom' && targetHandle === 'top' && Math.abs(dx) < 5) {
+    return `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+  }
+
+  // 生成正交路径
+  const midY = start.y + dy / 2
+  const r = Math.min(borderRadius, Math.abs(dx) / 2, Math.abs(dy) / 4)
+
+  if (sourceHandle === 'bottom' && targetHandle === 'top') {
+    if (Math.abs(dx) < 1) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+    }
+    // 从下到上，有水平偏移
+    const dir = dx > 0 ? 1 : -1
+    return `M ${start.x} ${start.y} 
+            L ${start.x} ${midY - r}
+            Q ${start.x} ${midY} ${start.x + r * dir} ${midY}
+            L ${end.x - r * dir} ${midY}
+            Q ${end.x} ${midY} ${end.x} ${midY + r}
+            L ${end.x} ${end.y}`
+  }
+
+  if (sourceHandle === 'right' && targetHandle === 'left') {
+    const midX = start.x + dx / 2
+    const rr = Math.min(borderRadius, Math.abs(dx) / 4, Math.abs(dy) / 2)
+    if (Math.abs(dy) < 1) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+    }
+    const dir = dy > 0 ? 1 : -1
+    return `M ${start.x} ${start.y}
+            L ${midX - rr} ${start.y}
+            Q ${midX} ${start.y} ${midX} ${start.y + rr * dir}
+            L ${midX} ${end.y - rr * dir}
+            Q ${midX} ${end.y} ${midX + rr} ${end.y}
+            L ${end.x} ${end.y}`
+  }
+
+  if (sourceHandle === 'left' && targetHandle === 'right') {
+    const midX = start.x + dx / 2
+    const rr = Math.min(borderRadius, Math.abs(dx) / 4, Math.abs(dy) / 2)
+    if (Math.abs(dy) < 1) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}`
+    }
+    const dir = dy > 0 ? 1 : -1
+    return `M ${start.x} ${start.y}
+            L ${midX + rr} ${start.y}
+            Q ${midX} ${start.y} ${midX} ${start.y + rr * dir}
+            L ${midX} ${end.y - rr * dir}
+            Q ${midX} ${end.y} ${midX - rr} ${end.y}
+            L ${end.x} ${end.y}`
+  }
+
+  // 其他情况使用贝塞尔曲线
+  const { control1, control2 } = getEdgeControlPoints(sourceNode, targetNode)
+  return `M ${start.x} ${start.y} C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${end.x} ${end.y}`
 }
 
 /** 生成SVG路径 */
@@ -171,11 +300,7 @@ export function generateEdgePath(
   sourceNode: FlowNode,
   targetNode: FlowNode
 ): string {
-  const { start, end, control1, control2 } = getEdgeControlPoints(
-    sourceNode,
-    targetNode
-  )
-  return `M ${start.x} ${start.y} C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${end.x} ${end.y}`
+  return generateSmoothStepPath(sourceNode, targetNode)
 }
 
 /** 查找连接到节点的所有边 */
@@ -300,3 +425,6 @@ export function styleToString(style: Partial<CSSStyleDeclaration>): string {
 export function classNames(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ')
 }
+
+// 导出布局工具
+export * from './layout'

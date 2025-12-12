@@ -21,7 +21,7 @@ import { EdgeManager } from './core/EdgeManager'
 import { Validator } from './core/Validator'
 import { NodeRenderer } from './renderer/NodeRenderer'
 import { EdgeRenderer } from './renderer/EdgeRenderer'
-import { throttle, deepClone, generateId } from './utils'
+import { throttle, deepClone, generateId, autoLayout, adjustNodePositions } from './utils'
 
 export interface FlowchartOptions extends FlowchartConfig {
   /** 初始流程数据 */
@@ -58,6 +58,7 @@ export class Flowchart {
   // 连线模式状态
   private isConnecting = false
   private connectSourceId: string | null = null
+  private connectSourceHandle: string | null = null
   private connectLine: SVGLineElement | null = null
 
   constructor(container: HTMLElement | string, options: FlowchartOptions = {}) {
@@ -225,18 +226,19 @@ export class Flowchart {
   }
 
   /**
-   * 绘制网格
+   * 绘制网格 - 在容器层绘制，不随画布缩放
    */
   private drawGrid(): void {
     const gridConfig = this.config.canvas?.grid
     if (!gridConfig?.enabled) return
 
     const { size, color } = gridConfig
-    this.canvas.style.backgroundImage = `
+    // 网格绘制在容器上，不随画布缩放
+    this.container.style.backgroundImage = `
       linear-gradient(${color} 1px, transparent 1px),
       linear-gradient(90deg, ${color} 1px, transparent 1px)
     `
-    this.canvas.style.backgroundSize = `${size}px ${size}px`
+    this.container.style.backgroundSize = `${size}px ${size}px`
   }
 
   /**
@@ -255,6 +257,17 @@ export class Flowchart {
       .fc-node:hover .fc-handle {
         opacity: 1;
       }
+      .fc-handle:hover {
+        transform: scale(1.3) !important;
+        background: #1890ff !important;
+        border-color: #1890ff !important;
+      }
+      .fc-handle-source {
+        cursor: crosshair;
+      }
+      .fc-handle-target {
+        cursor: pointer;
+      }
       .fc-node-selected {
         box-shadow: 0 0 0 2px #1890ff !important;
       }
@@ -264,10 +277,39 @@ export class Flowchart {
       }
       .fc-edge-selected .fc-edge-path {
         stroke: #1890ff !important;
-        stroke-width: 3px !important;
+        stroke-width: 2px !important;
       }
-      .fc-edge g {
-        pointer-events: all;
+      .fc-edge {
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      .fc-edge .fc-edge-path {
+        transition: stroke 0.2s, stroke-width 0.2s, filter 0.2s;
+        pointer-events: stroke;
+      }
+      .fc-edge:hover .fc-edge-path {
+        stroke: var(--fc-primary, #1890ff) !important;
+        stroke-width: 2px !important;
+        filter: drop-shadow(0 0 4px var(--fc-primary, #1890ff));
+      }
+      .fc-edge:hover .fc-edge-label {
+        background: var(--fc-primary, #1890ff) !important;
+        color: #fff !important;
+        border-color: var(--fc-primary, #1890ff) !important;
+        box-shadow: 0 2px 8px rgba(24, 144, 255, 0.4) !important;
+        transform: scale(1.05);
+      }
+      .fc-edge-label {
+        transition: all 0.2s ease;
+      }
+      .fc-edge-selected .fc-edge-path {
+        stroke: var(--fc-primary, #1890ff) !important;
+        stroke-width: 2px !important;
+      }
+      .fc-edge-selected .fc-edge-label {
+        background: var(--fc-primary, #1890ff) !important;
+        color: #fff !important;
+        border-color: var(--fc-primary, #1890ff) !important;
       }
       ${EdgeRenderer.generateAnimationStyles('fc')}
     `
@@ -384,6 +426,23 @@ export class Flowchart {
     if (this.config.readonly) return
 
     const target = e.target as HTMLElement
+
+    // 检查是否点击了连接点（handle）- 用于拖拽连线
+    const handleEl = target.closest('.fc-handle') as HTMLElement
+    if (handleEl) {
+      const handleType = handleEl.getAttribute('data-handle-type')
+      const handlePosition = handleEl.getAttribute('data-handle')
+      const nodeId = handleEl.getAttribute('data-node-id')
+
+      // 只有从 source handle 才能开始连线
+      if (handleType === 'source' && nodeId) {
+        e.preventDefault()
+        e.stopPropagation()
+        this.startConnectingFromHandle(nodeId, handlePosition || 'bottom')
+        return
+      }
+    }
+
     const nodeEl = target.closest('.fc-node') as HTMLElement
 
     if (nodeEl && this.config.canvas?.draggable) {
@@ -407,6 +466,15 @@ export class Flowchart {
         x: e.clientX - this.panOffset.x,
         y: e.clientY - this.panOffset.y,
       }
+      this.canvas.style.cursor = 'grabbing'
+    } else if (e.button === 0 && !nodeEl && !handleEl) {
+      // 左键点击空白区域，开始平移画布
+      this.isPanning = true
+      this.dragStartPos = {
+        x: e.clientX - this.panOffset.x,
+        y: e.clientY - this.panOffset.y,
+      }
+      this.canvas.style.cursor = 'grabbing'
     }
   }
 
@@ -443,9 +511,43 @@ export class Flowchart {
    * 处理鼠标松开
    */
   private handleMouseUp(e: MouseEvent): void {
+    // 处理连线模式下的鼠标松开
+    if (this.isConnecting && this.connectSourceId) {
+      const target = e.target as HTMLElement
+
+      // 检查是否松开在目标 handle 上
+      const handleEl = target.closest('.fc-handle') as HTMLElement
+      if (handleEl) {
+        const handleType = handleEl.getAttribute('data-handle-type')
+        const targetNodeId = handleEl.getAttribute('data-node-id')
+
+        if (handleType === 'target' && targetNodeId && targetNodeId !== this.connectSourceId) {
+          this.finishConnecting(targetNodeId)
+          return
+        }
+      }
+
+      // 检查是否松开在节点上（使用节点的默认入口 handle）
+      const nodeEl = target.closest('.fc-node') as HTMLElement
+      if (nodeEl) {
+        const targetNodeId = nodeEl.getAttribute('data-node-id')
+        if (targetNodeId && targetNodeId !== this.connectSourceId) {
+          this.finishConnecting(targetNodeId)
+          return
+        }
+      }
+
+      // 否则取消连线
+      this.cancelConnecting()
+    }
+
     if (this.isDragging && this.dragNode) {
       this.recordHistory()
       this.emit('node:dragend', { node: this.dragNode, originalEvent: e })
+    }
+
+    if (this.isPanning) {
+      this.canvas.style.cursor = ''
     }
 
     this.isDragging = false
@@ -540,12 +642,38 @@ export class Flowchart {
    * 加载流程数据
    */
   loadData(data: FlowDefinition): void {
-    this.nodeManager.setNodes(data.nodes)
+    let nodes = data.nodes
+
+    // 如果启用自动布局，重新计算节点位置
+    if (this.config.layout?.autoLayout) {
+      nodes = autoLayout(nodes, data.edges, this.config.layout)
+    } else {
+      // 否则只调整重叠的节点
+      nodes = adjustNodePositions(nodes, this.config.layout)
+    }
+
+    this.nodeManager.setNodes(nodes)
     this.edgeManager.setEdges(data.edges)
     this.render()
+
+    // 自动居中显示
+    this.centerView()
+
     this.history.clear()
     this.recordHistory()
-    this.emit('flow:change', { changes: { type: 'add', nodes: data.nodes, edges: data.edges } })
+    this.emit('flow:change', { changes: { type: 'add', nodes, edges: data.edges } })
+  }
+
+  /**
+   * 重新布局
+   */
+  relayout(): void {
+    const nodes = this.nodeManager.getNodes()
+    const edges = this.edgeManager.getEdges()
+    const layoutedNodes = autoLayout(nodes, edges, this.config.layout)
+    this.nodeManager.setNodes(layoutedNodes)
+    this.render()
+    this.recordHistory()
   }
 
   /**
@@ -744,26 +872,49 @@ export class Flowchart {
   // ============ 连线模式 ============
 
   /**
-   * 开始连线
+   * 从 handle 开始拖拽连线
    */
-  startConnecting(sourceId: string): void {
+  private startConnectingFromHandle(sourceId: string, handlePosition: string): void {
     if (this.config.readonly) return
     this.isConnecting = true
     this.connectSourceId = sourceId
+    this.connectSourceHandle = handlePosition
 
     // 创建临时连线
     this.connectLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
     this.connectLine.setAttribute('stroke', '#1890ff')
-    this.connectLine.setAttribute('stroke-width', '2')
-    this.connectLine.setAttribute('stroke-dasharray', '5,5')
+    this.connectLine.setAttribute('stroke-width', '1.5')
+    this.connectLine.setAttribute('stroke-dasharray', '4,4')
     this.connectLine.style.pointerEvents = 'none'
     this.edgesLayer.appendChild(this.connectLine)
 
-    // 获取源节点位置
+    // 获取源节点位置 - 根据 handle 位置确定起点
     const sourceNode = this.nodeManager.getNode(sourceId)
     if (sourceNode) {
-      const startX = sourceNode.position.x + (sourceNode.size?.width ?? 180) / 2
-      const startY = sourceNode.position.y + (sourceNode.size?.height ?? 60) / 2
+      const nodeWidth = sourceNode.size?.width ?? 180
+      const nodeHeight = sourceNode.size?.height ?? 60
+      let startX: number, startY: number
+
+      switch (handlePosition) {
+        case 'right':
+          startX = sourceNode.position.x + nodeWidth
+          startY = sourceNode.position.y + nodeHeight / 2
+          break
+        case 'left':
+          startX = sourceNode.position.x
+          startY = sourceNode.position.y + nodeHeight / 2
+          break
+        case 'top':
+          startX = sourceNode.position.x + nodeWidth / 2
+          startY = sourceNode.position.y
+          break
+        case 'bottom':
+        default:
+          startX = sourceNode.position.x + nodeWidth / 2
+          startY = sourceNode.position.y + nodeHeight
+          break
+      }
+
       this.connectLine.setAttribute('x1', String(startX))
       this.connectLine.setAttribute('y1', String(startY))
       this.connectLine.setAttribute('x2', String(startX))
@@ -771,14 +922,72 @@ export class Flowchart {
     }
 
     this.canvas.style.cursor = 'crosshair'
+
+    // 高亮所有可能的目标 handle
+    this.highlightTargetHandles(true)
+  }
+
+  /**
+   * 开始连线
+   */
+  startConnecting(sourceId: string): void {
+    if (this.config.readonly) return
+    this.isConnecting = true
+    this.connectSourceId = sourceId
+    this.connectSourceHandle = 'bottom'
+
+    // 创建临时连线
+    this.connectLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+    this.connectLine.setAttribute('stroke', '#1890ff')
+    this.connectLine.setAttribute('stroke-width', '1.5')
+    this.connectLine.setAttribute('stroke-dasharray', '4,4')
+    this.connectLine.style.pointerEvents = 'none'
+    this.edgesLayer.appendChild(this.connectLine)
+
+    // 获取源节点位置
+    const sourceNode = this.nodeManager.getNode(sourceId)
+    if (sourceNode) {
+      const startX = sourceNode.position.x + (sourceNode.size?.width ?? 180) / 2
+      const startY = sourceNode.position.y + (sourceNode.size?.height ?? 60)
+      this.connectLine.setAttribute('x1', String(startX))
+      this.connectLine.setAttribute('y1', String(startY))
+      this.connectLine.setAttribute('x2', String(startX))
+      this.connectLine.setAttribute('y2', String(startY))
+    }
+
+    this.canvas.style.cursor = 'crosshair'
+    this.highlightTargetHandles(true)
+  }
+
+  /**
+   * 高亮目标连接点
+   */
+  private highlightTargetHandles(show: boolean): void {
+    const handles = this.nodesLayer.querySelectorAll('.fc-handle-target')
+    handles.forEach((handle) => {
+      const el = handle as HTMLElement
+      if (show) {
+        // 排除源节点的 handle
+        const nodeId = el.getAttribute('data-node-id')
+        if (nodeId !== this.connectSourceId) {
+          el.style.opacity = '1'
+          el.style.transform = el.style.transform.replace('scale(1)', '') + ' scale(1.2)'
+        }
+      } else {
+        el.style.opacity = ''
+        el.style.transform = el.style.transform.replace(' scale(1.2)', '')
+      }
+    })
   }
 
   /**
    * 取消连线
    */
   cancelConnecting(): void {
+    this.highlightTargetHandles(false)
     this.isConnecting = false
     this.connectSourceId = null
+    this.connectSourceHandle = null
     if (this.connectLine) {
       this.connectLine.remove()
       this.connectLine = null
@@ -860,6 +1069,25 @@ export class Flowchart {
       this.render()
       this.emit('history:redo', {})
     }
+  }
+
+  /**
+   * 水平居中视图（不改变缩放）
+   */
+  centerView(padding = 30): void {
+    const nodes = this.nodeManager.getNodes()
+    if (nodes.length === 0) return
+
+    const bounds = this.getNodesBounds(nodes)
+    const containerRect = this.container.getBoundingClientRect()
+
+    // 只水平居中，垂直方向保持上方有padding
+    this.panOffset = {
+      x: (containerRect.width - bounds.width * this.scale) / 2 - bounds.x * this.scale,
+      y: padding - bounds.y * this.scale,
+    }
+
+    this.updateTransform()
   }
 
   /**
@@ -1022,6 +1250,27 @@ export class Flowchart {
     const targetNode = this.nodeManager.getNode(edge.target)
     if (!sourceNode || !targetNode) return
 
+    // 获取实际渲染的节点尺寸
+    const sourceEl = this.nodeElements.get(edge.source)
+    const targetEl = this.nodeElements.get(edge.target)
+
+    // 使用实际 DOM 尺寸覆盖 node.size
+    const sourceWithSize = { ...sourceNode }
+    const targetWithSize = { ...targetNode }
+
+    if (sourceEl) {
+      sourceWithSize.size = {
+        width: sourceEl.offsetWidth || 150,
+        height: sourceEl.offsetHeight || 50
+      }
+    }
+    if (targetEl) {
+      targetWithSize.size = {
+        width: targetEl.offsetWidth || 150,
+        height: targetEl.offsetHeight || 50
+      }
+    }
+
     let edgeEl = this.edgeElements.get(id)
 
     if (!edgeEl) {
@@ -1030,7 +1279,7 @@ export class Flowchart {
       this.edgeElements.set(id, edgeEl)
     }
 
-    this.edgeRenderer.render(edge, sourceNode, targetNode, edgeEl)
+    this.edgeRenderer.render(edge, sourceWithSize, targetWithSize, edgeEl)
   }
 
   /**

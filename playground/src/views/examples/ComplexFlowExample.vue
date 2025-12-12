@@ -27,12 +27,12 @@ const complexFlowData: FlowDefinition = {
     { id: 'medium-manager', type: 'approval', position: { x: 400, y: 320 }, data: { label: '财务经理审批', approvers: [{ id: '3', name: '财务经理', type: 'role' }], approvalMode: 'any' } },
     { id: 'medium-director', type: 'approval', position: { x: 400, y: 420 }, data: { label: '采购总监审批', approvers: [{ id: '4', name: '采购总监', type: 'role' }], approvalMode: 'any' } },
     
-    // 大额流程 (> 10万)
-    { id: 'large-parallel', type: 'parallel', position: { x: 650, y: 320 }, data: { label: '并行审批' } },
-    { id: 'large-finance', type: 'approval', position: { x: 550, y: 420 }, data: { label: '财务总监审批', approvers: [{ id: '5', name: '财务总监', type: 'role' }], approvalMode: 'any' } },
-    { id: 'large-legal', type: 'approval', position: { x: 750, y: 420 }, data: { label: '法务审核', approvers: [{ id: '6', name: '法务专员', type: 'role' }], approvalMode: 'any' } },
-    { id: 'large-merge', type: 'parallel', position: { x: 650, y: 520 }, data: { label: '汇合' } },
-    { id: 'large-ceo', type: 'approval', position: { x: 650, y: 620 }, data: { label: 'CEO审批', approvers: [{ id: '7', name: 'CEO', type: 'role' }], approvalMode: 'any' } },
+    // 大额流程 (> 10万) - 间距50px
+    { id: 'large-parallel', type: 'parallel', position: { x: 700, y: 320 }, data: { label: '并行审批' } },
+    { id: 'large-finance', type: 'approval', position: { x: 630, y: 420 }, data: { label: '财务总监审批', approvers: [{ id: '5', name: '财务总监', type: 'role' }], approvalMode: 'any' } },
+    { id: 'large-legal', type: 'approval', position: { x: 860, y: 420 }, data: { label: '法务审核', approvers: [{ id: '6', name: '法务专员', type: 'role' }], approvalMode: 'any' } },
+    { id: 'large-merge', type: 'parallel', position: { x: 745, y: 520 }, data: { label: '汇合' } },
+    { id: 'large-ceo', type: 'approval', position: { x: 745, y: 620 }, data: { label: 'CEO审批', approvers: [{ id: '7', name: 'CEO', type: 'role' }], approvalMode: 'any' } },
     
     // 合同条件
     { id: 'contract-condition', type: 'condition', position: { x: 400, y: 520 }, data: { label: '需要合同?' } },

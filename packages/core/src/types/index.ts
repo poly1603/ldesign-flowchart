@@ -368,12 +368,26 @@ export interface ToolbarConfig {
   >
 }
 
+/** 布局配置 */
+export interface LayoutConfig {
+  /** 节点水平间距 */
+  horizontalSpacing?: number
+  /** 节点垂直间距 */
+  verticalSpacing?: number
+  /** 是否自动布局 */
+  autoLayout?: boolean
+  /** 布局方向 */
+  direction?: 'TB' | 'LR' | 'BT' | 'RL'
+}
+
 /** 流程图配置 */
 export interface FlowchartConfig {
   /** 画布配置 */
   canvas?: CanvasConfig
   /** 工具栏配置 */
   toolbar?: ToolbarConfig
+  /** 布局配置 */
+  layout?: LayoutConfig
   /** 节点默认样式 */
   nodeStyle?: Partial<Record<NodeType, NodeStyleConfig>>
   /** 连线默认样式 */

@@ -45,9 +45,18 @@ const edgeForm = reactive({
 const flowData = ref<FlowDefinition>({
   nodes: [
     { id: 'start-1', type: 'start', position: { x: 300, y: 50 }, data: { label: '开始' } },
-    { id: 'end-1', type: 'end', position: { x: 300, y: 400 }, data: { label: '结束' } },
+    { id: 'approval-1', type: 'approval', position: { x: 300, y: 150 }, data: { label: '部门审批' } },
+    { id: 'condition-1', type: 'condition', position: { x: 300, y: 260 }, data: { label: '金额判断' } },
+    { id: 'approval-2', type: 'approval', position: { x: 120, y: 370 }, data: { label: '财务审批' } },
+    { id: 'end-1', type: 'end', position: { x: 300, y: 480 }, data: { label: '结束' } },
   ],
-  edges: [],
+  edges: [
+    { id: 'edge-1', source: 'start-1', target: 'approval-1', data: { label: '提交申请' } },
+    { id: 'edge-2', source: 'approval-1', target: 'condition-1', data: { label: '审批通过' } },
+    { id: 'edge-3', source: 'condition-1', target: 'approval-2', type: 'conditional', data: { label: '金额>1万' } },
+    { id: 'edge-4', source: 'condition-1', target: 'end-1', type: 'conditional', data: { label: '金额≤1万', isDefault: true } },
+    { id: 'edge-5', source: 'approval-2', target: 'end-1', data: { label: '完成' } },
+  ],
 })
 
 const nodeTypes = [
@@ -204,6 +213,19 @@ const updateNodeLabel = () => {
   }
 }
 
+// 切换节点类型
+const changeNodeType = (event: Event) => {
+  const newType = (event.target as HTMLSelectElement).value as NodeType
+  if (selectedNode.value && flowchartInstance && newType !== selectedNode.value.type) {
+    flowchartInstance.updateNode(selectedNode.value.id, {
+      type: newType
+    })
+    // 刷新选中状态
+    const updated = flowchartInstance.getNode(selectedNode.value.id)
+    if (updated) selectedNode.value = updated
+  }
+}
+
 // 更新连线标签
 const updateEdgeLabel = () => {
   if (selectedEdge.value && flowchartInstance) {
@@ -291,10 +313,10 @@ onUnmounted(() => {
         
         <div class="fc-panel-title" style="margin-top: 24px;">使用说明</div>
         <div class="help-text">
-          <p>1. 拖拽节点到画布</p>
-          <p>2. 选中节点后点击"连线"</p>
-          <p>3. 再点击目标节点完成连线</p>
-          <p>4. 选中元素后右侧编辑属性</p>
+          <p>1. 拖拽左侧节点到画布</p>
+          <p>2. 从节点边缘的圆点拖拽到目标节点创建连线</p>
+          <p>3. 点击连线可编辑标签</p>
+          <p>4. Delete 键删除选中元素</p>
         </div>
       </div>
 
@@ -386,8 +408,17 @@ onUnmounted(() => {
         <!-- 节点属性 -->
         <div v-else-if="selectedNode" class="property-form">
           <div class="property-section">
-            <div class="property-label">节点类型</div>
-            <div class="property-value type-badge">{{ selectedNode.type }}</div>
+            <label class="property-label" for="node-type">节点类型</label>
+            <select 
+              id="node-type"
+              class="property-select"
+              :value="selectedNode.type"
+              @change="changeNodeType($event)"
+            >
+              <option v-for="nt in nodeTypes" :key="nt.type" :value="nt.type">
+                {{ nt.name }}
+              </option>
+            </select>
           </div>
           
           <div class="property-section">
@@ -593,6 +624,22 @@ onUnmounted(() => {
 }
 
 .property-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.property-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.property-select:focus {
   outline: none;
   border-color: var(--primary-color);
 }
